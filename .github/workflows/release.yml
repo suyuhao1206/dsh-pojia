@@ -1,5 +1,5 @@
-# Release 工作流占位：本分支不从 CI 自动发布。
-# 需要发版时：改下面的 repository 守卫为你的 owner/repo，并确认 package.json 里的包名。
+# Release 工作流：推 master 时做一遍语法自检；tag 发版按需在这里扩展。
+# 守卫已指向本插件发布仓库 suyuhao1206/dsh-pojia，其它 fork 默认跳过。
 name: Release
 
 on:
@@ -16,8 +16,7 @@ concurrency:
 
 jobs:
   release:
-    # 修改为你自己的 owner/repo 才会启用自动发版
-    if: github.repository == 'your-name/dsh-pojia'
+    if: github.repository == 'suyuhao1206/dsh-pojia'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
