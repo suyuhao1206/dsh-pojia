@@ -1,0 +1,32 @@
+# Release 工作流占位：本分支不从 CI 自动发布。
+# 需要发版时：改下面的 repository 守卫为你的 owner/repo，并确认 package.json 里的包名。
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # 修改为你自己的 owner/repo 才会启用自动发版
+    if: github.repository == 'your-name/dsh-pojia'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Syntax-check plugin entry
+        run: |
+          node --check lib/index.js
+          node --check lib/core.js
+          node --check lib/reapply.js
+          node --input-type=module -e "import './lib/index.js'"
