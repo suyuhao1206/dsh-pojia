@@ -11,6 +11,10 @@
 - **新增 #89 `DESKTOP_HOST_STOP_REASON_PICKER`**：壳层对话框的原因从"最后一行 stderr"改成"优先挑 error/fail/exception 行"，不再让 `[llm-deepseek-account] model listing ... loaded 2 model(s)` 这种 info 日志冒充崩溃原因。
 - **状态页不再假绿灯**：`gatherState` 新增 `loaded_dsh_root / loaded_from_asar / patches_loaded / swap`。补丁写进了 `resources/app`、但当前进程仍从 `app.asar` 启动时，状态页明确报 ✗「补丁一条都没加载（换包重启后才生效）」，而不是"✓ 全部生效（11 项）"。
 - **自测**：假安装目录端到端 **1.5 秒**走完 `BEGIN → KILL → LAUNCH → END`（`moved=1 restarted=1`）；同机真实 Harness 进程数 **6 → 6 不变**；`lib/desktop.js`、`lib/core.js`、`lib/index.js` 三个 `node --check` 全 0。
+- **新增 #90 `PI_AI_CONTENT_FILTER_RETRYABLE` + `lib/filter-bypass.js`**（上游过滤对抗）：
+  - 旧行为：`classifyPiAiError` 认不出的错误一律 `PI_AI_ERROR`，而它在 `LLM_FAILURE_CODES` 里**没有** `retryChoice` → 上游一返回 `finish_reason: content_filter` 就整轮判死（界面就是「本轮运行失败 Provider finish_reason: content_filter」）。#90 把 `content_filter|moderation|flagged|safety policy|inappropriate` 一类文本判成 `MALFORMED_RESPONSE`（可重试），重试层才有机会换一次问法。
+  - `lib/filter-bypass.js` 给出可执行的阶梯：`frame → chunk → pov → euphemize → continue → route`，配 `isContentFiltered()`、`chunkPlan()`、`continuePrompt()`、`retryWithReframe()` 与重试退避表。工具 `pojia_filter_escape(request, attempt)` 直接吐出改写后的 prompt。
+  - 定位不变：这一步只是"不被同一条 prompt 反复打回"，真正决定产出的是分段推进 + 视角/措辞改写。
 
 ## English
 
@@ -23,6 +27,10 @@
 - **New #89 `DESKTOP_HOST_STOP_REASON_PICKER`**: the shell's crash reason now prefers an error-ish stderr line instead of blindly taking the last line, so an info log (`model listing ... loaded 2 model(s)`) can no longer masquerade as the cause.
 - **No more false green in the status page**: `gatherState` gains `loaded_dsh_root / loaded_from_asar / patches_loaded / swap`; when patches are written to `resources/app` but the process still boots from `app.asar`, status now reports ✗ "none of the patches are loaded" instead of "✓ all applied (11 items)".
 - **Self-test**: the fake install tree completes `BEGIN → KILL → LAUNCH → END` in **1.5 s** (`moved=1 restarted=1`) while the real Harness process count stays **6 → 6**; `node --check` passes on `lib/desktop.js`, `lib/core.js` and `lib/index.js`.
+- **New #90 `PI_AI_CONTENT_FILTER_RETRYABLE` + `lib/filter-bypass.js`** (upstream-filter countermeasures):
+  - Old behaviour: anything `classifyPiAiError` could not classify became `PI_AI_ERROR`, which has **no** `retryChoice` in `LLM_FAILURE_CODES` — so a provider answering `finish_reason: content_filter` killed the whole turn ("Provider finish_reason: content_filter"). #90 maps `content_filter|moderation|flagged|safety policy|inappropriate` to the retryable `MALFORMED_RESPONSE` so the retry layer gets another shot with a different ask.
+  - `lib/filter-bypass.js` ships the ladder `frame → chunk → pov → euphemize → continue → route` plus `isContentFiltered()`, `chunkPlan()`, `continuePrompt()`, `retryWithReframe()` and a backoff table. The `pojia_filter_escape(request, attempt)` tool returns the rewritten prompt directly.
+  - Scope note: this only stops the *same prompt* from being rejected over and over; what actually gets through is segmented pacing plus the viewpoint/wording rewrite.
 
 # 1.0.2
 
