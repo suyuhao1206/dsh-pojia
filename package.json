@@ -25,6 +25,8 @@
     "docs",
     "presets",
     "skills",
+    "install.cmd",
+    "scripts/install-desktop.ps1",
     "scripts/anchor-check.mjs",
     "scripts/redteam-setup.sh",
     "scripts/export-engagement-report.mjs",

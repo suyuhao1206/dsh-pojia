@@ -7,25 +7,54 @@ Jailbreak / cleaning plugin for the DeepSeek Harness: works with every model, sw
 
 ---
 
-## Deploy (desktop)
+## Deploy (desktop, Windows)
 
-Node.js ≥ 18. Installing the plugin does **not** patch the host by itself — finish the three first-run steps below.
+**No `dsh` command, no Node, no pnpm needed.** Pick one of the three install paths below; installing does **not** patch the host by itself, so finish the three first-run steps afterwards.
 
-### Option 1: install from this directory (recommended)
+### Option 1: run the installer (recommended)
+
+1. Unpack the plugin and double-click `install.cmd`.
+2. The script does three things: copies the plugin to `%USERPROFILE%\.dsh\plugins\dsh-pojia` → links `profiles\desktop\node_modules\dsh-pojia` to it → writes `dependencies` and `dsh.profile.bundles` into the profile's `package.json` (backing it up first).
+3. Fully quit and reopen the desktop app → click **dsh-pojia** beside the session title → **Clean** → **Apply**.
+
+Optional flags (defaults are fine):
+
+```bat
+install.cmd                       :: try the host CLI first, fall back to manual wiring
+install.cmd -Mode link            :: manual wiring only (fastest, most predictable)
+install.cmd -DryRun               :: print the plan, change nothing
+install.cmd -Source "D:\code\dsh-pojia"   :: point at another plugin copy
+install.cmd -Uninstall            :: unlink from the profile (files kept)
+install.cmd -Uninstall -Purge     :: also delete %USERPROFILE%\.dsh\plugins\dsh-pojia
+install.cmd -ProfileName desktop  :: another profile
+```
+
+The script edits JSON with the host's bundled `node.exe`; if even that is missing it falls back to a text rewrite and re-parses the result, so nothing has to be installed on your side.
+
+### Option 2: install from the host UI (no terminal)
+
+Desktop app → **Plugins** in the sidebar → **Add plugin** → paste the **absolute path** of this plugin folder (for example `D:\apps\dsh-pojia`) → install → fully quit and reopen.
+
+### Option 3: if `dsh` is already on your PATH
 
 ```sh
 cd <this directory>
 dsh plugin --profile desktop add .
 ```
 
-### Option 2: manual install
+Most desktop installs do not put `dsh` on PATH; use Option 1 or 2 in that case.
 
-1. Locate the `$DSH_HOME` actually in use (`%USERPROFILE%\.dsh` on this machine; it must contain `profiles\`).
-2. Copy this whole directory to `$DSH_HOME\profiles\desktop\node_modules\dsh-pojia` (the folder name must be `dsh-pojia`).
-3. Edit `$DSH_HOME\profiles\desktop\package.json`:
-   - add `"dsh-pojia": "file:../../plugins/dsh-pojia"` to `dependencies`
-   - append `"dsh-pojia"` to the end of `dsh.profile.bundles` (no duplicates, JSON must stay valid)
-4. Run `pnpm install` inside `$DSH_HOME\profiles\desktop`.
+### Option 4: manual wiring (troubleshooting)
+
+1. Locate the `$DSH_HOME` in use (`%USERPROFILE%\.dsh`; it must contain `profiles\`).
+2. Put the plugin folder at `$DSH_HOME\plugins\dsh-pojia` (any other location works too, point the link at it).
+3. Create a junction / directory link at `$DSH_HOME\profiles\desktop\node_modules\dsh-pojia` pointing to step 2.
+4. Edit `$DSH_HOME\profiles\desktop\package.json`:
+   - add `"dsh-pojia": "link:<plugin folder, forward slashes>"` to `dependencies`
+   - append `"dsh-pojia"` to `dsh.profile.bundles` (no duplicates, JSON must stay valid)
+5. **No `pnpm install` required** — the link is enough for the host to resolve the plugin.
+
+The old instructions (copy into `node_modules`, then `pnpm install`) are gone: they were a dead end for anyone without pnpm.
 
 ### Migrating from dsh-purge
 
@@ -99,11 +128,10 @@ Runtime data: `$DSH_HOME\prompt-inject.md`, `$DSH_HOME\rules\`, `$DSH_HOME\skill
 
 ## Upgrade
 
-1. Fully quit the desktop app.
-2. Overwrite `$DSH_HOME\profiles\desktop\node_modules\dsh-pojia` with the new contents (or re-run `dsh plugin --profile desktop add .`).
-3. Start → Clean → Apply → auto restart → new chat.
+- **One-click inside the plugin**: **dsh-pojia** beside the session title → **Clean** → **Version & updates** → **Check for updates** → upgrade when a newer build shows up. It pulls from `master` of this repository (`https://github.com/suyuhao1206/dsh-pojia`), replacing `lib`, `bin`, `docs`, `presets`, `skills` and the root files, then re-applies patches and restarts.
+- **Manual**: unpack the new build over the plugin folder → re-run `install.cmd` (or double-click it) → fully quit and reopen.
 
-The built-in update check points at no repository by default; to enable one, set `REPO` at the top of `lib/update.js` to your own `owner/repo`.
+> Builds before 1.0.2 shipped `REPO = "local/dsh-pojia"` as a placeholder, so the update check always failed; overwrite once with this build and one-click upgrade starts working.
 
 ## Scope of use
 
