@@ -1,3 +1,29 @@
+# 1.0.3
+
+## 中文
+
+- 版本 **1.0.3**，适配 **DSH 0.2.2-rc.3**。把「点『应用』→ 重启」这一整条做对：不再弹『应用无法启动或已意外停止』，也不再点了「现在重启」毫无反应：
+  - **换包脚本不再按映像名全盘杀**：删掉写死的 `taskkill /F /IM 'DeepSeek Harness.exe'` / `'DSH Desktop.exe'`，只按 `-ExePath` 完全相等或落在安装根目录下杀。传错 `ExePath` 不会再误伤别的实例（旧版哪怕只做一次路径探针，也会把真实进程一起杀掉）。
+  - **换包全过程可查**：新增 `-TracePath`，每步都写 trace（`BEGIN / KILL / ROBOCOPY / MOVE retry / LAUNCH / END`）到 `%TEMP%\dsh-pojia-asar-swap-<pid>.trace.log`；结果另存 `dsh-pojia-swap-state.json`，状态页直接显示"上次换包怎么了"。
+  - **看门狗不再到点自杀**：旧版 20 秒超时 `process.exit(0)`，而未打补丁的壳会把 host 退出渲染成崩溃对话框——这就是弹窗的直接来源（两次都卡在 spawn 后 20.2 秒，`asarMoved=false`）。现在只有"asar 真的已挪走"或"脚本自己写了 END"才收尾，其余一律不动宿主；硬超时用 `DSH_POJIA_SWAP_HARD_TIMEOUT_MS` 显式打开，且只记状态不退出。
+  - **启动器改由 `cmd /c start` 拉起**：`detached`（±`windowsHide`）的 PowerShell 在这台机器上 `CreateProcess` 成功却一行都不执行；非 `detached` 能执行，但 PowerShell 挂在宿主自己的控制台/作业对象上，一杀掉 Electron main 就被连坐 —— trace 只剩一行 `BEGIN`，asar 挪不走、exe 拉不起，于是「现在重启」点了等于没点。改为 `cmd /c start "" /min powershell -WindowStyle Hidden …`（参数写进同目录 `.cmd` 启动器并自行加引号，避开 `start` 吃空格），PowerShell 拿到属于它自己的控制台：既能真正执行，又能活到杀完 main 之后完成挪包 + 拉起 exe。4 秒内没有 trace 只重拉一次启动器（脚本幂等）。
+  - **杀不掉就不改名、不重启**：避免两份实例抢同一个 profile；asar 挪不动时把原 exe 拉回来，并留 `.rename-pending` 给下次空闲重试。
+- **新增 #89 `DESKTOP_HOST_STOP_REASON_PICKER`**：壳层对话框的原因从"最后一行 stderr"改成"优先挑 error/fail/exception 行"，不再让 `[llm-deepseek-account] model listing ... loaded 2 model(s)` 这种 info 日志冒充崩溃原因。
+- **状态页不再假绿灯**：`gatherState` 新增 `loaded_dsh_root / loaded_from_asar / patches_loaded / swap`。补丁写进了 `resources/app`、但当前进程仍从 `app.asar` 启动时，状态页明确报 ✗「补丁一条都没加载（换包重启后才生效）」，而不是"✓ 全部生效（11 项）"。
+- **自测**：假安装目录端到端 **1.5 秒**走完 `BEGIN → KILL → LAUNCH → END`（`moved=1 restarted=1`）；同机真实 Harness 进程数 **6 → 6 不变**；`lib/desktop.js`、`lib/core.js`、`lib/index.js` 三个 `node --check` 全 0。
+
+## English
+
+- **1.0.3** targets **DSH 0.2.2-rc.3**. Makes the whole "Apply → restart" path behave: no more *The application could not start or stopped unexpectedly*, and *Restart now* actually restarts:
+  - The asar-swap script **no longer kills by image name**: the hardcoded `taskkill /F /IM 'DeepSeek Harness.exe'` / `'DSH Desktop.exe'` lines are gone; it only kills processes whose path equals `-ExePath` or lives under that install root.
+  - **Every swap step is observable**: new `-TracePath` writes `BEGIN / KILL / ROBOCOPY / MOVE retry / LAUNCH / END` to `%TEMP%\dsh-pojia-asar-swap-<pid>.trace.log`, and the outcome lands in `dsh-pojia-swap-state.json`, which the status page renders.
+  - **The watchdog no longer kills the host on a timer**: the old 20 s `process.exit(0)` was the direct source of the crash dialog (both incidents landed exactly 20.2 s after spawn with `asarMoved=false`). It now finishes only when the asar is really gone or the script wrote `END`; a hard timeout is opt-in via `DSH_POJIA_SWAP_HARD_TIMEOUT_MS` and never exits the host.
+  - **Launcher goes through `cmd /c start`**: a **detached** powershell (±`windowsHide`) is created successfully but executes nothing on this machine, while a non-detached one executes but hangs off the host's console/job object and is killed together with the Electron main — the trace stops at a single `BEGIN`, the asar is never moved and the exe never relaunched, which is exactly why *Restart now* did nothing. The script is now launched via `cmd /c start "" /min powershell -WindowStyle Hidden …` (arguments written into a sibling `.cmd` launcher with our own quoting, so `start`'s space-hungry parsing cannot break paths), giving PowerShell its own console: it really runs, and it survives long enough to kill the main, move `app.asar` aside and relaunch. One extra launcher spawn happens if no trace appears within 4 s (the script is idempotent).
+  - **Kill failure = no rename, no relaunch** (avoids two instances sharing one profile); when the asar cannot be moved, the original exe is relaunched and `.rename-pending` is left for the idle retry.
+- **New #89 `DESKTOP_HOST_STOP_REASON_PICKER`**: the shell's crash reason now prefers an error-ish stderr line instead of blindly taking the last line, so an info log (`model listing ... loaded 2 model(s)`) can no longer masquerade as the cause.
+- **No more false green in the status page**: `gatherState` gains `loaded_dsh_root / loaded_from_asar / patches_loaded / swap`; when patches are written to `resources/app` but the process still boots from `app.asar`, status now reports ✗ "none of the patches are loaded" instead of "✓ all applied (11 items)".
+- **Self-test**: the fake install tree completes `BEGIN → KILL → LAUNCH → END` in **1.5 s** (`moved=1 restarted=1`) while the real Harness process count stays **6 → 6**; `node --check` passes on `lib/desktop.js`, `lib/core.js` and `lib/index.js`.
+
 # 1.0.2
 
 ## 中文
