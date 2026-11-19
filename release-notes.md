@@ -11,16 +11,6 @@
 - **新增 #89 `DESKTOP_HOST_STOP_REASON_PICKER`**：壳层对话框的原因从"最后一行 stderr"改成"优先挑 error/fail/exception 行"，不再让 `[llm-deepseek-account] model listing ... loaded 2 model(s)` 这种 info 日志冒充崩溃原因。
 - **状态页不再假绿灯**：`gatherState` 新增 `loaded_dsh_root / loaded_from_asar / patches_loaded / swap`。补丁写进了 `resources/app`、但当前进程仍从 `app.asar` 启动时，状态页明确报 ✗「补丁一条都没加载（换包重启后才生效）」，而不是"✓ 全部生效（11 项）"。
 - **自测**：假安装目录端到端 **1.5 秒**走完 `BEGIN → KILL → LAUNCH → END`（`moved=1 restarted=1`）；同机真实 Harness 进程数 **6 → 6 不变**；`lib/desktop.js`、`lib/core.js`、`lib/index.js` 三个 `node --check` 全 0。
-- **新增 #90 `PI_AI_CONTENT_FILTER_RETRYABLE` + `lib/filter-bypass.js`**（上游过滤对抗）：
-  - 旧行为：`classifyPiAiError` 认不出的错误一律 `PI_AI_ERROR`，而它在 `LLM_FAILURE_CODES` 里**没有** `retryChoice` → 上游一返回 `finish_reason: content_filter` 就整轮判死（界面就是「本轮运行失败 Provider finish_reason: content_filter」）。#90 把 `content_filter|moderation|flagged|safety policy|inappropriate` 一类文本判成 `MALFORMED_RESPONSE`（可重试），重试层才有机会换一次问法。
-  - `lib/filter-bypass.js` 给出可执行的阶梯：`frame → chunk → pov → euphemize → continue → route`，配 `isContentFiltered()`、`chunkPlan()`、`continuePrompt()`、`retryWithReframe()` 与重试退避表。工具 `pojia_filter_escape(request, attempt)` 直接吐出改写后的 prompt。
-  - 定位不变：这一步只是"不被同一条 prompt 反复打回"，真正决定产出的是分段推进 + 视角/措辞改写。
-- **过滤对抗 v2：按对手类型分层，而不是一味编码**（`lib/filter-codec.js` + `docs/filter-bypass.md`）：
-  - 新增编解码层：零宽分词、全角混排、简繁换字面、拼音（整词映射，避开多音字）、base64，外加 `riskScore` 与全部**反向还原**（`stripZeroWidth` / `fromZhHant` / `fromPinyin` / `fromB64`）。
-  - 阶梯从 6 档扩到 **8 档**：`frame → segment → pov → glossary → continue → euphemize → codec → route`；`chunkPlan` 升级为 **`riskAwareChunks`**（按句切、高危句隔离、**发风险最低的那段**），`retryWithReframe` 加 `adaptive`（连续两次被打回就回退一档）。
-  - **主力是输出侧暗语**：`buildGlossaryPrompt` 让正文只写 `[[G]]/[[P]]/[[B]]/[[M]]/[[O]]` 等 ANSI 代号，出站文本语义干净，`applyGlossary` 在**本地**还原；新增工具 `pojia_filter_decode`。
-  - 编码只做**低剂量**（第 7 档，只打词表词）：对正则/词表有效；对 LLM judge 基本是负收益（护栏 `decode-then-classify`），且国内平台对拼音规避有专利级防御（拼音倒排索引 / 拼音前缀树）。
-  - 证据与取舍写在 `docs/filter-bypass.md`（含 6 条外部来源）。
 
 ## English
 
@@ -33,16 +23,6 @@
 - **New #89 `DESKTOP_HOST_STOP_REASON_PICKER`**: the shell's crash reason now prefers an error-ish stderr line instead of blindly taking the last line, so an info log (`model listing ... loaded 2 model(s)`) can no longer masquerade as the cause.
 - **No more false green in the status page**: `gatherState` gains `loaded_dsh_root / loaded_from_asar / patches_loaded / swap`; when patches are written to `resources/app` but the process still boots from `app.asar`, status now reports ✗ "none of the patches are loaded" instead of "✓ all applied (11 items)".
 - **Self-test**: the fake install tree completes `BEGIN → KILL → LAUNCH → END` in **1.5 s** (`moved=1 restarted=1`) while the real Harness process count stays **6 → 6**; `node --check` passes on `lib/desktop.js`, `lib/core.js` and `lib/index.js`.
-- **New #90 `PI_AI_CONTENT_FILTER_RETRYABLE` + `lib/filter-bypass.js`** (upstream-filter countermeasures):
-  - Old behaviour: anything `classifyPiAiError` could not classify became `PI_AI_ERROR`, which has **no** `retryChoice` in `LLM_FAILURE_CODES` — so a provider answering `finish_reason: content_filter` killed the whole turn ("Provider finish_reason: content_filter"). #90 maps `content_filter|moderation|flagged|safety policy|inappropriate` to the retryable `MALFORMED_RESPONSE` so the retry layer gets another shot with a different ask.
-  - `lib/filter-bypass.js` ships the ladder `frame → chunk → pov → euphemize → continue → route` plus `isContentFiltered()`, `chunkPlan()`, `continuePrompt()`, `retryWithReframe()` and a backoff table. The `pojia_filter_escape(request, attempt)` tool returns the rewritten prompt directly.
-  - Scope note: this only stops the *same prompt* from being rejected over and over; what actually gets through is segmented pacing plus the viewpoint/wording rewrite.
-- **Filter countermeasures v2: layer by opponent type instead of encoding everything** (`lib/filter-codec.js` + `docs/filter-bypass.md`):
-  - New codec layer: zero-width splitting, full-width mixing, simplified↔traditional swapping, pinyin (whole-word map, polyphone-safe) and base64, plus `riskScore` and **inverse decoders** (`stripZeroWidth` / `fromZhHant` / `fromPinyin` / `fromB64`).
-  - Ladder goes from 6 to **8 rungs**: `frame → segment → pov → glossary → continue → euphemize → codec → route`; `chunkPlan` becomes **`riskAwareChunks`** (sentence split, isolate high-risk sentences, **send the lowest-risk slice**), and `retryWithReframe` gains `adaptive` (step back one rung after two consecutive rejections).
-  - **The main channel is output-side shorthand**: `buildGlossaryPrompt` makes the model write only ASCII tokens such as `[[G]]/[[P]]/[[B]]/[[M]]/[[O]]`, so outbound text stays semantically clean, and `applyGlossary` restores it **locally**; new tool `pojia_filter_decode`.
-  - Encoding stays **low-dose** (rung 7, lexicon words only): it works against regex/wordlist guards, but is close to counterproductive against LLM judges (they `decode-then-classify`), and Chinese platforms already ship patent-level pinyin defences (pinyin inverted index / pinyin prefix tree).
-  - Evidence and trade-offs live in `docs/filter-bypass.md` (6 external sources).
 
 # 1.0.2
 
