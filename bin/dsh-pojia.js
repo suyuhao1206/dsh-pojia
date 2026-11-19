@@ -19,7 +19,7 @@ function printStatus(state) {
   } else {
     out.push("  插件根 / root  " + core.missingAiBaseMessage());
   }
-  out.push(`  shim 目录      ${state.shim_dir || "未定位 / not found"}`);
+  out.push(`  dsh 命令      客户端「管理 dsh 命令…」安装（插件不再注入 shim）`);
   out.push(`  备份 / backup  ${state.has_backup ? "有 / yes" : "无 / no"}`);
   out.push(`  注入文件       ${state.override_path}`);
   out.push(`  注入状态       ${state.override_status}`);
@@ -31,7 +31,8 @@ function printStatus(state) {
     out.push(`    ${mark} [#${String(p.id).padEnd(2)}] ${p.name.padEnd(30)} ${p.layer}/${p.layer_en} — ${s}`);
   }
   out.push("");
-  out.push(`  shim: dsh.cmd=${state.shim_cmd}  dsh.ps1=${state.shim_ps1}  dsh=${state.shim_bin}`);
+  const shimLeftover = [state.shim_cmd, state.shim_ps1, state.shim_bin].some((s) => s === "patched");
+  if (shimLeftover) out.push("  旧版 shim 残留：下次 --apply 或 --revert 会清理");
   return out.join("\n");
 }
 
@@ -82,16 +83,12 @@ async function main() {
     console.log(inject.source === "rule"
       ? "  - 使用当前规则集，不改写提示词文件"
       : "  - 使用已有提示词文件");
+    // 1.0.3：shim 注入已停用，dsh 命令交给客户端「管理 dsh 命令…」。
+    console.log("  - dsh 命令由客户端「管理 dsh 命令…」安装，插件不再注入 shim");
     if (state.shim_dir) {
-      const r = await core.patchShim(state.shim_dir);
-      for (const [fname, st] of Object.entries(r)) {
-        if (st === "patched") console.log(`  ✓ shim ${fname} 注入 / injected`);
-        else if (st === "already_patched") console.log(`  - shim ${fname} 已注入 / already injected`);
-        else if (st === "missing") console.log(`  - shim ${fname} 不存在 / missing`);
-        else console.log(`  ⚠ shim ${fname}: ${st}`);
-      }
-    } else {
-      console.log("  ⚠ 未定位 shim 目录，跳过注入");
+      const legacy = await core.revertShim(state.shim_dir);
+      const cleaned = Object.entries(legacy || {}).filter(([, st]) => st === "reverted" || st === "stripped_inject");
+      for (const [fname, st] of cleaned) console.log(`  ✓ 清掉旧 shim ${fname}: ${st}`);
     }
     console.log("");
     console.log("全部完成 / All done。重启 dsh 生效 / Restart dsh to take effect.");

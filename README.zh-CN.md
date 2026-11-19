@@ -11,40 +11,22 @@ DeepSeek Harness 破甲（jailbreak / 清洗）插件：让所有模型都能破
 
 **不需要 `dsh` 命令、不需要 Node、也不需要 pnpm。** 三种方式任选一种，装完插件**还不会改宿主**，必须再做「首次启用」三步。
 
-### 方式一：双击安装器（推荐）
-
-1. 解压本插件，双击 `install.cmd`。
-2. 脚本自动完成三件事：同步插件到 `%USERPROFILE%\.dsh\plugins\dsh-pojia` → 在 `profiles\desktop\node_modules\dsh-pojia` 建链接指向它 → 往 profile 的 `package.json` 写 `dependencies` 与 `dsh.profile.bundles`（改前自动备份）。
-3. 完全退出桌面端再重开 → 点会话标题旁的 **dsh-pojia** → **清洗** → **应用**。
-
-可选参数（命令行里用，不传就是默认）：
-
-```bat
-install.cmd                       :: 先试宿主自带 CLI，失败退回手工接线
-install.cmd -Mode link            :: 只手工接线（最快、最稳）
-install.cmd -DryRun               :: 只打印要做什么，不落盘
-install.cmd -Source "D:\code\dsh-pojia"   :: 指定插件目录
-install.cmd -Uninstall            :: 从 profile 摘掉（插件文件保留）
-install.cmd -Uninstall -Purge     :: 连 %USERPROFILE%\.dsh\plugins\dsh-pojia 一起删
-install.cmd -ProfileName desktop  :: 换 profile
-```
-
-脚本用宿主自带的 `node.exe` 改 JSON；连它也没找到时会退回纯文本改写并重新解析校验，所以不需要你装任何运行环境。
-
-### 方式二：宿主界面里装（零命令行）
+### 方式一：宿主界面里装（推荐，零命令行）
 
 桌面端 → 左侧 **插件** → **添加插件** → 填**本插件目录的绝对路径**（例：`D:\apps\dsh-pojia`）→ 安装 → 完全退出再重开。
 
-### 方式三：已经启用 `dsh` 命令的话
+> 早期版本的 `install.cmd` / `scripts\install-desktop.ps1` 已移除。`dsh` 命令改由客户端自己的 **菜单 → 管理 dsh 命令…** 安装，插件不再往 PATH 里塞 `dsh.cmd` / `dsh.ps1` / `dsh`。旧版本留下的 shim 会在下一次「应用 / 回滚 / 卸载」时被自动清理掉。
+
+### 方式二：已经启用 `dsh` 命令的话
 
 ```sh
 cd <本目录>
 dsh plugin --profile desktop add .
 ```
 
-这条命令要求 `dsh` 已经在 PATH 里（多数桌面安装默认没有）。没有就走方式一或方式二。
+`dsh` 用桌面端的 **管理 dsh 命令…** 装上即可，不需要本插件代劳。
 
-### 方式四：手工接线（排障用）
+### 方式三：手工接线（排障用）
 
 1. 找到正在使用的 `$DSH_HOME`（本机为 `%USERPROFILE%\.dsh`，认 `profiles\` 目录存在）。
 2. 把整个插件目录放到 `$DSH_HOME\plugins\dsh-pojia`（放别处也行，下面链接指过去）。
@@ -129,7 +111,7 @@ dsh-pojia --edit       # 编辑注入文件 prompt-inject.md
 ## 升级
 
 - **插件内一键升级**：会话标题旁 **dsh-pojia** → **清洗** → **版本与更新** → **检测更新** → 有新版就点升级。数据源是本仓库 `https://github.com/suyuhao1206/dsh-pojia` 的 `master`，覆盖 `lib`、`bin`、`docs`、`presets`、`skills` 与根文件后自动重打补丁并重启。
-- **手动升级**：解压新包覆盖插件目录 → 重跑 `install.cmd`（或双击）→ 完全退出重开。
+- **手动升级**：解压新包覆盖插件目录 → 完全退出重开（不再需要安装脚本，profile 里已经注册好了）。
 
 > 1.0.2 之前的版本 `REPO` 是占位符 `local/dsh-pojia`，检测更新永远失败；用这份新包覆盖一次之后才能一键升级。
 

@@ -10,6 +10,11 @@
   - **杀不掉就不改名、不重启**：避免两份实例抢同一个 profile；asar 挪不动时把原 exe 拉回来，并留 `.rename-pending` 给下次空闲重试。
 - **新增 #89 `DESKTOP_HOST_STOP_REASON_PICKER`**：壳层对话框的原因从"最后一行 stderr"改成"优先挑 error/fail/exception 行"，不再让 `[llm-deepseek-account] model listing ... loaded 2 model(s)` 这种 info 日志冒充崩溃原因。
 - **状态页不再假绿灯**：`gatherState` 新增 `loaded_dsh_root / loaded_from_asar / patches_loaded / swap`。补丁写进了 `resources/app`、但当前进程仍从 `app.asar` 启动时，状态页明确报 ✗「补丁一条都没加载（换包重启后才生效）」，而不是"✓ 全部生效（11 项）"。
+- **部署方式简化：`dsh` 命令交还客户端**：
+  - 删掉 `install.cmd` 与 `scripts/install-desktop.ps1`（package.json 的 `files` 同步移除）。`dsh` 命令改由桌面端 **菜单 → 管理 dsh 命令…** 安装，插件不再往 PATH 里塞 `dsh.cmd` / `dsh.ps1` / `dsh`。
+  - `patchShim()` / `patchAllShims()` 退化为废弃占位（不再写盘）；注入器 `shimKindOf` / `shimInjectFor` / `insertShimInject` / `shimInjectCurrent` 一并删除。**保留** `revertShim()` / `revertAllShims()`：旧版本注入过的 shim 会在应用 / 回滚 / 卸载时被清掉。
+  - 状态页与 CLI 不再打印 `shim: dsh.cmd=… / dsh.ps1=… / dsh=…`，改为一行「dsh 命令由客户端安装」；检测到旧 shim 残留时提示下次清理。
+  - README（中/英）部署段重排：宿主界面添加插件 → `dsh plugin add .` → 手工接线；安装器参数表整段移除。
 - **自测**：假安装目录端到端 **1.5 秒**走完 `BEGIN → KILL → LAUNCH → END`（`moved=1 restarted=1`）；同机真实 Harness 进程数 **6 → 6 不变**；`lib/desktop.js`、`lib/core.js`、`lib/index.js` 三个 `node --check` 全 0。
 
 ## English
@@ -22,6 +27,11 @@
   - **Kill failure = no rename, no relaunch** (avoids two instances sharing one profile); when the asar cannot be moved, the original exe is relaunched and `.rename-pending` is left for the idle retry.
 - **New #89 `DESKTOP_HOST_STOP_REASON_PICKER`**: the shell's crash reason now prefers an error-ish stderr line instead of blindly taking the last line, so an info log (`model listing ... loaded 2 model(s)`) can no longer masquerade as the cause.
 - **No more false green in the status page**: `gatherState` gains `loaded_dsh_root / loaded_from_asar / patches_loaded / swap`; when patches are written to `resources/app` but the process still boots from `app.asar`, status now reports ✗ "none of the patches are loaded" instead of "✓ all applied (11 items)".
+- **Deployment simplified: the `dsh` command goes back to the client**:
+  - `install.cmd` and `scripts/install-desktop.ps1` are removed (also dropped from `files` in package.json). The `dsh` command is installed by the desktop app via **menu → Manage dsh command…**; the plugin no longer drops `dsh.cmd` / `dsh.ps1` / `dsh` shims into PATH.
+  - `patchShim()` / `patchAllShims()` degrade to deprecated no-ops; the injectors `shimKindOf` / `shimInjectFor` / `insertShimInject` / `shimInjectCurrent` are deleted. `revertShim()` / `revertAllShims()` are **kept**, so shims injected by older versions are cleaned up on Apply / Revert / Uninstall.
+  - The status page and CLI no longer print `shim: dsh.cmd=… / dsh.ps1=… / dsh=…`; they state that the `dsh` command is client-managed and warn about legacy leftovers.
+  - README (zh/en) deploy sections reordered: add plugin from the host UI → `dsh plugin add .` → manual wiring; the installer flag table is gone.
 - **Self-test**: the fake install tree completes `BEGIN → KILL → LAUNCH → END` in **1.5 s** (`moved=1 restarted=1`) while the real Harness process count stays **6 → 6**; `node --check` passes on `lib/desktop.js`, `lib/core.js` and `lib/index.js`.
 
 # 1.0.2
