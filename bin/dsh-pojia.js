@@ -85,11 +85,6 @@ async function main() {
       : "  - 使用已有提示词文件");
     // 1.0.3：shim 注入已停用，dsh 命令交给客户端「管理 dsh 命令…」。
     console.log("  - dsh 命令由客户端「管理 dsh 命令…」安装，插件不再注入 shim");
-    if (state.shim_dir) {
-      const legacy = await core.revertShim(state.shim_dir);
-      const cleaned = Object.entries(legacy || {}).filter(([, st]) => st === "reverted" || st === "stripped_inject");
-      for (const [fname, st] of cleaned) console.log(`  ✓ 清掉旧 shim ${fname}: ${st}`);
-    }
     console.log("");
     console.log("全部完成 / All done。重启 dsh 生效 / Restart dsh to take effect.");
   } else if (mode === "--revert") {
@@ -98,13 +93,6 @@ async function main() {
       for (const p of reverted) console.log(`  ✓ 已还原 / Reverted ${p}`);
       for (const [p, e] of errors) console.log(`  ⚠ 还原失败 ${p}: ${e}`);
       if (reverted.length === 0) console.log("  - 没有补丁备份可还原 / no patch backup");
-    }
-    if (state.shim_dir) {
-      const r = await core.revertShim(state.shim_dir);
-      for (const [fname, st] of Object.entries(r)) {
-        if (st === "reverted" || st === "stripped_inject") console.log(`  ✓ shim ${fname}: ${st}`);
-        else console.log(`  - shim ${fname}: ${st}`);
-      }
     }
     console.log("");
     console.log("回滚完成 / Revert done。重启 dsh 后恢复 / restart to restore.");
